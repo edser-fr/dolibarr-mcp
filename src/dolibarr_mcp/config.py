@@ -91,7 +91,7 @@ class Config(BaseModel):
             print()
             raise
     
-    class Config:
-        """Pydantic config."""
+    class Settings:
+        """Pydantic settings configuration."""
         env_file = '.env'
         env_file_encoding = 'utf-8'
