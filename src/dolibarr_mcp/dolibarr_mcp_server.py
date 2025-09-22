@@ -4,6 +4,8 @@ import asyncio
 import json
 import sys
 import os
+import logging
+from contextlib import asynccontextmanager
 
 # Import MCP components
 from mcp.server.models import InitializationOptions
@@ -15,6 +17,13 @@ from mcp.types import Tool, TextContent
 from .config import Config
 from .dolibarr_client import DolibarrClient, DolibarrAPIError
 
+
+# Configure logging to stderr so it doesn't interfere with MCP protocol
+logging.basicConfig(
+    level=logging.WARNING,  # Reduce noise in MCP communication
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)]
+)
 
 # Create server instance
 server = Server("dolibarr-mcp")
@@ -634,12 +643,14 @@ async def handle_call_tool(name: str, arguments: dict):
     
     except Exception as e:
         error_result = {"error": f"Tool execution failed: {str(e)}", "type": "internal_error"}
+        print(f"🔥 Tool execution error: {e}", file=sys.stderr)  # Debug logging
         return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
 
 
-async def main():
-    """Run the Dolibarr MCP server."""
-    # Quick API test using the proper client
+@asynccontextmanager
+async def test_api_connection():
+    """Test API connection and yield client if successful."""
+    config = None
     try:
         config = Config()
         async with DolibarrClient(config) as client:
@@ -648,31 +659,55 @@ async def main():
             if 'success' in result or 'dolibarr_version' in str(result):
                 print("✅ Dolibarr API connection successful", file=sys.stderr)
                 print("🎯 Full CRUD operations available for all Dolibarr modules", file=sys.stderr)
+                yield True
             else:
                 print(f"❌ API test failed: {result.get('error', 'Unknown error')}", file=sys.stderr)
-                return
+                yield False
     except Exception as e:
         print(f"❌ API test error: {e}", file=sys.stderr)
-        return
+        if config is None:
+            print("💡 Check your .env file configuration", file=sys.stderr)
+        yield False
+
+
+async def main():
+    """Run the Dolibarr MCP server."""
+    
+    # Quick API test using the proper client
+    async with test_api_connection() as api_ok:
+        if not api_ok:
+            print("🚨 Cannot start server without valid API connection", file=sys.stderr)
+            sys.exit(1)
     
     # Run server
     print("🚀 Starting Professional Dolibarr MCP server...", file=sys.stderr)
     print("✅ Server ready with comprehensive ERP management capabilities", file=sys.stderr)
     
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="dolibarr-mcp",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="dolibarr-mcp",
+                    server_version="1.0.1",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
                 ),
-            ),
-        )
+            )
+    except Exception as e:
+        print(f"💥 Server error: {e}", file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n👋 Server stopped by user", file=sys.stderr)
+        sys.exit(0)
+    except Exception as e:
+        print(f"❌ Server startup error: {e}", file=sys.stderr)
+        sys.exit(1)
