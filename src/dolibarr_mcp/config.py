@@ -1,6 +1,7 @@
 """Configuration management for Dolibarr MCP Server."""
 
 import os
+import sys
 from typing import Optional
 
 from pydantic import BaseModel, Field, validator
@@ -32,17 +33,23 @@ class Config(BaseModel):
     def validate_dolibarr_url(cls, v):
         """Validate Dolibarr URL."""
         if not v:
-            raise ValueError("DOLIBARR_URL environment variable is required")
+            # Print warning but don't fail
+            print("⚠️ DOLIBARR_URL not configured - API calls will fail", file=sys.stderr)
+            return "https://your-dolibarr-instance.com/api/index.php"
         
         if not v.startswith(('http://', 'https://')):
             raise ValueError("DOLIBARR_URL must start with http:// or https://")
         
         # Ensure it ends with the proper API path
         if not v.endswith('/api/index.php'):
-            if v.endswith('/'):
-                v = v + 'api/index.php'
+            # Check if it already has /api somewhere
+            if '/api' in v:
+                # Just ensure it ends properly
+                if not v.endswith('/index.php'):
+                    v = v.rstrip('/') + '/index.php'
             else:
-                v = v + '/api/index.php'
+                # Add the full API path
+                v = v.rstrip('/') + '/api/index.php'
                 
         return v
     
@@ -50,13 +57,13 @@ class Config(BaseModel):
     def validate_api_key(cls, v):
         """Validate API key."""
         if not v:
-            raise ValueError(
-                "DOLIBARR_API_KEY environment variable is required. "
-                "Please create an API key in Dolibarr at: Home → Setup → API/Web services"
-            )
+            # Print warning but don't fail
+            print("⚠️ DOLIBARR_API_KEY not configured - API authentication will fail", file=sys.stderr)
+            print("📝 Please set DOLIBARR_API_KEY in your .env file or Claude configuration", file=sys.stderr)
+            return "placeholder_api_key"
         
-        if len(v) < 10:
-            raise ValueError("DOLIBARR_API_KEY appears to be too short. Please check your API key.")
+        if v == "your_dolibarr_api_key_here":
+            print("⚠️ Using placeholder API key - please configure a real API key", file=sys.stderr)
             
         return v
     
@@ -74,21 +81,21 @@ class Config(BaseModel):
         try:
             return cls()
         except Exception as e:
-            print(f"❌ Configuration Error: {e}")
-            print()
-            print("💡 Quick Setup Guide:")
-            print("1. Copy .env.example to .env")
-            print("2. Edit .env with your Dolibarr details:")
-            print("   DOLIBARR_URL=https://your-dolibarr-instance.com")
-            print("   DOLIBARR_API_KEY=your_api_key_here")
-            print()
-            print("🔧 Dolibarr API Key Setup:")
-            print("   1. Login to Dolibarr as admin")
-            print("   2. Go to: Home → Setup → Modules")
-            print("   3. Enable: 'Web Services API REST (developer)'")
-            print("   4. Go to: Home → Setup → API/Web services")
-            print("   5. Create a new API key")
-            print()
+            print(f"❌ Configuration Error: {e}", file=sys.stderr)
+            print(file=sys.stderr)
+            print("💡 Quick Setup Guide:", file=sys.stderr)
+            print("1. Copy .env.example to .env", file=sys.stderr)
+            print("2. Edit .env with your Dolibarr details:", file=sys.stderr)
+            print("   DOLIBARR_URL=https://your-dolibarr-instance.com", file=sys.stderr)
+            print("   DOLIBARR_API_KEY=your_api_key_here", file=sys.stderr)
+            print(file=sys.stderr)
+            print("🔧 Dolibarr API Key Setup:", file=sys.stderr)
+            print("   1. Login to Dolibarr as admin", file=sys.stderr)
+            print("   2. Go to: Home → Setup → Modules", file=sys.stderr)
+            print("   3. Enable: 'Web Services API REST (developer)'", file=sys.stderr)
+            print("   4. Go to: Home → Setup → API/Web services", file=sys.stderr)
+            print("   5. Create a new API key", file=sys.stderr)
+            print(file=sys.stderr)
             raise
     
     class Settings:
