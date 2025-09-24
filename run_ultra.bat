@@ -47,8 +47,8 @@ echo   • Professional error handling
 echo   • Zero permission issues
 echo.
 
-REM Start the ultra-simple server
-python -m src.dolibarr_mcp.ultra_simple_server
+REM Start the ultra-simple server directly (avoid import issues)
+python src\dolibarr_mcp\ultra_simple_server.py
 
 echo.
 echo Server stopped.
