@@ -7,17 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Documentation bundle in `docs/` that mirrors the quickstart, configuration and development guides of `prestashop-mcp`.
-
-### Changed
-- Simplified the repository layout to match the minimal structure of `prestashop-mcp` (dedicated `docs/` and `docker/` directories).
-- Clarified cross-platform installation instructions, including Visual Studio developer shell usage on Windows.
-- Trimmed runtime dependencies to match the actual imports and exposed developer extras for the test tooling.
-
-### Removed
-- Redundant launcher and legacy documentation directories replaced by the centralised docs set.
-
 ## [1.1.0] - 2024-05-22
 
 ### Removed
