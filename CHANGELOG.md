@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Clarified cross-platform installation instructions, including Visual Studio developer shell usage on Windows.
-- Trimmed runtime dependencies to match the actual imports and exposed developer extras for the test tooling.
-
 ## [1.1.0] - 2024-05-22
 
 ### Removed
