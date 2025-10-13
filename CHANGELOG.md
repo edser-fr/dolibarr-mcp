@@ -15,7 +15,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and adopts th
 ### Removed
 - Obsolete references to legacy helper scripts and superseded documentation variants that were dropped during the repository cleanup.
 
-## [1.1.0] - 2024-05-22
+## [1.1.0]
 
 ### Removed
 - Legacy helper scripts, installers, and manual test programs that duplicated the automated test-suite.
@@ -26,7 +26,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and adopts th
 - Rewrote the README to highlight the streamlined structure and provide concise installation/run instructions.
 - Clarified that `dolibarr_mcp_server.py` is the definitive MCP entry point.
 
-## [1.1.0] - 2024-05-22
+## [1.1.0]
 
 ### Removed
 - Legacy helper scripts, installers and manual test programs that duplicated the automated test-suite
@@ -37,7 +37,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and adopts th
 - Rewrote the README to highlight the streamlined structure and provide concise installation/run instructions
 - Clarified that `dolibarr_mcp_server.py` is the definitive MCP entry point
 
-## [1.0.0] - 2024-01-26
+## [1.0.0]
 
 ### 🎯 Major Restructuring
 
@@ -67,7 +67,7 @@ This release represents a complete restructuring of the Dolibarr MCP Server to m
 - Improved logging.
 - Async/await architecture throughout.
 
-## [0.5.0] - 2024-01-20
+## [0.5.0]
 
 ### Added
 - Initial Dolibarr API integration.
@@ -75,8 +75,7 @@ This release represents a complete restructuring of the Dolibarr MCP Server to m
 - MCP server implementation.
 - Docker configuration.
 
-## [0.1.0] - 2024-01-15
-
+## [0.1.0]
 ### Added
 - Initial project setup.
 - Basic repository structure.
