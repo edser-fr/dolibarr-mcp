@@ -596,6 +596,167 @@ async def handle_list_tools():
             },
         ),
 
+        Tool(
+            name="create_invoice_draft",
+            description=(
+                "Create a new invoice draft (header only). "
+                "Use this to start a new invoice, then use add_invoice_line to add items. "
+                "Returns the new invoice_id."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "customer_id": {
+                        "type": "integer",
+                        "description": "Customer ID (Dolibarr socid)",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Invoice date (YYYY-MM-DD)",
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Linked project ID (optional)",
+                    },
+                },
+                "required": ["customer_id", "date"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="add_invoice_line",
+            description="Add a line item to an existing draft invoice.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "invoice_id": {
+                        "type": "integer",
+                        "description": "Invoice ID",
+                    },
+                    "desc": {
+                        "type": "string",
+                        "description": "Line description",
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "Quantity",
+                    },
+                    "subprice": {
+                        "type": "number",
+                        "description": "Unit price (net)",
+                    },
+                    "product_id": {
+                        "type": "integer",
+                        "description": "Product ID (optional)",
+                    },
+                    "product_type": {
+                        "type": "integer",
+                        "description": "Type (0=Product, 1=Service)",
+                        "default": 0,
+                    },
+                    "vat": {
+                        "type": "number",
+                        "description": "VAT rate (optional)",
+                    },
+                },
+                "required": ["invoice_id", "desc", "qty", "subprice"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="update_invoice_line",
+            description="Update an existing line in a draft invoice.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "invoice_id": {
+                        "type": "integer",
+                        "description": "Invoice ID",
+                    },
+                    "line_id": {
+                        "type": "integer",
+                        "description": "Line ID to update",
+                    },
+                    "desc": {
+                        "type": "string",
+                        "description": "New description",
+                    },
+                    "qty": {
+                        "type": "number",
+                        "description": "New quantity",
+                    },
+                    "subprice": {
+                        "type": "number",
+                        "description": "New unit price",
+                    },
+                    "vat": {
+                        "type": "number",
+                        "description": "New VAT rate",
+                    },
+                },
+                "required": ["invoice_id", "line_id"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="delete_invoice_line",
+            description="Delete a line from a draft invoice.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "invoice_id": {
+                        "type": "integer",
+                        "description": "Invoice ID",
+                    },
+                    "line_id": {
+                        "type": "integer",
+                        "description": "Line ID to delete",
+                    },
+                },
+                "required": ["invoice_id", "line_id"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="set_invoice_project",
+            description="Link an invoice to a project.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "invoice_id": {
+                        "type": "integer",
+                        "description": "Invoice ID",
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID",
+                    },
+                },
+                "required": ["invoice_id", "project_id"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="validate_invoice",
+            description="Validate a draft invoice (change status to unpaid).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "invoice_id": {
+                        "type": "integer",
+                        "description": "Invoice ID",
+                    },
+                    "warehouse_id": {
+                        "type": "integer",
+                        "description": "Warehouse ID for stock decrease (optional)",
+                        "default": 0,
+                    },
+                },
+                "required": ["invoice_id"],
+                "additionalProperties": False,
+            },
+        ),
+
         # Order Management CRUD
         Tool(
             name="get_orders",
@@ -1099,6 +1260,40 @@ async def handle_call_tool(name: str, arguments: dict):
             
             elif name == "delete_invoice":
                 result = await client.delete_invoice(arguments['invoice_id'])
+
+            elif name == "create_invoice_draft":
+                # Map customer_id to socid for the API
+                if "customer_id" in arguments:
+                    arguments["socid"] = arguments.pop("customer_id")
+                
+                # Map project_id to fk_project if present
+                if "project_id" in arguments:
+                    arguments["fk_project"] = arguments.pop("project_id")
+                
+                result = await client.create_invoice(**arguments)
+
+            elif name == "add_invoice_line":
+                invoice_id = arguments.pop("invoice_id")
+                result = await client.add_invoice_line(invoice_id, **arguments)
+
+            elif name == "update_invoice_line":
+                invoice_id = arguments.pop("invoice_id")
+                line_id = arguments.pop("line_id")
+                result = await client.update_invoice_line(invoice_id, line_id, **arguments)
+
+            elif name == "delete_invoice_line":
+                invoice_id = arguments.pop("invoice_id")
+                line_id = arguments.pop("line_id")
+                result = await client.delete_invoice_line(invoice_id, line_id)
+
+            elif name == "set_invoice_project":
+                invoice_id = arguments.pop("invoice_id")
+                project_id = arguments.pop("project_id")
+                result = await client.update_invoice(invoice_id, fk_project=project_id)
+
+            elif name == "validate_invoice":
+                invoice_id = arguments.pop("invoice_id")
+                result = await client.validate_invoice(invoice_id, **arguments)
             
             # Order Management
             elif name == "get_orders":

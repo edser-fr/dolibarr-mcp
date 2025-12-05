@@ -430,6 +430,44 @@ class DolibarrClient:
     async def delete_invoice(self, invoice_id: int) -> Dict[str, Any]:
         """Delete an invoice."""
         return await self.request("DELETE", f"invoices/{invoice_id}")
+
+    async def add_invoice_line(
+        self,
+        invoice_id: int,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Add a line to an invoice."""
+        payload = self._merge_payload(data, **kwargs)
+        
+        # Map product_id to fk_product if present
+        if "product_id" in payload:
+            payload["fk_product"] = payload.pop("product_id")
+            
+        return await self.request("POST", f"invoices/{invoice_id}/lines", data=payload)
+
+    async def update_invoice_line(
+        self,
+        invoice_id: int,
+        line_id: int,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Update a line in an invoice."""
+        payload = self._merge_payload(data, **kwargs)
+        return await self.request("PUT", f"invoices/{invoice_id}/lines/{line_id}", data=payload)
+
+    async def delete_invoice_line(self, invoice_id: int, line_id: int) -> Dict[str, Any]:
+        """Delete a line from an invoice."""
+        return await self.request("DELETE", f"invoices/{invoice_id}/lines/{line_id}")
+
+    async def validate_invoice(self, invoice_id: int, warehouse_id: int = 0, not_trigger: int = 0) -> Dict[str, Any]:
+        """Validate an invoice."""
+        payload = {
+            "idwarehouse": warehouse_id,
+            "not_trigger": not_trigger
+        }
+        return await self.request("POST", f"invoices/{invoice_id}/validate", data=payload)
     
     # ============================================================================
     # ORDER MANAGEMENT
