@@ -272,6 +272,12 @@ class DolibarrClient:
     # CUSTOMER/THIRD PARTY MANAGEMENT
     # ============================================================================
     
+    async def search_customers(self, sqlfilters: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Search customers using SQL filters."""
+        params = {"limit": limit, "sqlfilters": sqlfilters}
+        result = await self.request("GET", "thirdparties", params=params)
+        return result if isinstance(result, list) else []
+
     async def get_customers(self, limit: int = 100, page: int = 1) -> List[Dict[str, Any]]:
         """Get list of customers/third parties."""
         params = {"limit": limit}
@@ -330,6 +336,12 @@ class DolibarrClient:
     # PRODUCT MANAGEMENT
     # ============================================================================
     
+    async def search_products(self, sqlfilters: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Search products using SQL filters."""
+        params = {"limit": limit, "sqlfilters": sqlfilters}
+        result = await self.request("GET", "products", params=params)
+        return result if isinstance(result, list) else []
+
     async def get_products(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get list of products."""
         params = {"limit": limit}

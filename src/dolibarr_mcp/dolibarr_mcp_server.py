@@ -44,6 +44,59 @@ async def handle_list_tools():
             description="Get Dolibarr system status and version information",
             inputSchema={"type": "object", "properties": {}, "additionalProperties": False}
         ),
+
+        # Search Tools
+        Tool(
+            name="search_products_by_ref",
+            description="Search products by reference prefix (e.g. 'PRJ-123')",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ref_prefix": {"type": "string", "description": "Prefix of the product reference"},
+                    "limit": {"type": "integer", "description": "Maximum number of results", "default": 20}
+                },
+                "required": ["ref_prefix"],
+                "additionalProperties": False
+            }
+        ),
+        Tool(
+            name="search_customers",
+            description="Search customers by name or alias",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search term for name or alias"},
+                    "limit": {"type": "integer", "description": "Maximum number of results", "default": 20}
+                },
+                "required": ["query"],
+                "additionalProperties": False
+            }
+        ),
+        Tool(
+            name="search_products_by_label",
+            description="Search products by label/description",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "label_search": {"type": "string", "description": "Search term in product label"},
+                    "limit": {"type": "integer", "description": "Maximum number of results", "default": 20}
+                },
+                "required": ["label_search"],
+                "additionalProperties": False
+            }
+        ),
+        Tool(
+            name="resolve_product_ref",
+            description="Find exactly one product by reference. Returns status 'ok', 'not_found', or 'ambiguous'.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ref": {"type": "string", "description": "Exact product reference"}
+                },
+                "required": ["ref"],
+                "additionalProperties": False
+            }
+        ),
         
         # User Management CRUD
         Tool(
@@ -514,6 +567,42 @@ async def handle_call_tool(name: str, arguments: dict):
             elif name == "get_status":
                 result = await client.get_status()
             
+            # Search Tools
+            elif name == "search_products_by_ref":
+                ref_prefix = arguments['ref_prefix']
+                limit = arguments.get('limit', 20)
+                sqlfilters = f"(t.ref:like:'{ref_prefix}%')"
+                result = await client.search_products(sqlfilters=sqlfilters, limit=limit)
+
+            elif name == "search_customers":
+                query = arguments['query']
+                limit = arguments.get('limit', 20)
+                sqlfilters = f"((t.nom:like:'%{query}%') OR (t.name_alias:like:'%{query}%'))"
+                result = await client.search_customers(sqlfilters=sqlfilters, limit=limit)
+
+            elif name == "search_products_by_label":
+                label_search = arguments['label_search']
+                limit = arguments.get('limit', 20)
+                sqlfilters = f"(t.label:like:'%{label_search}%')"
+                result = await client.search_products(sqlfilters=sqlfilters, limit=limit)
+
+            elif name == "resolve_product_ref":
+                ref = arguments['ref']
+                sqlfilters = f"(t.ref:like:'{ref}')"
+                products = await client.search_products(sqlfilters=sqlfilters, limit=2)
+                
+                if not products:
+                    result = {"status": "not_found", "message": f"Product with ref '{ref}' not found"}
+                elif len(products) == 1:
+                    result = {"status": "ok", "product": products[0]}
+                else:
+                    # Check if one is exact match
+                    exact_matches = [p for p in products if p.get('ref') == ref]
+                    if len(exact_matches) == 1:
+                         result = {"status": "ok", "product": exact_matches[0]}
+                    else:
+                        result = {"status": "ambiguous", "message": f"Multiple products found for ref '{ref}'", "products": products}
+
             # User Management
             elif name == "get_users":
                 result = await client.get_users(
