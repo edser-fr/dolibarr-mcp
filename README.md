@@ -90,6 +90,9 @@ The server reads configuration from the environment or a `.env` file. Both
 | `DOLIBARR_URL` / `DOLIBARR_SHOP_URL` | Base Dolibarr API endpoint, e.g. `https://example.com/api/index.php`. Trailing slashes are handled automatically. |
 | `DOLIBARR_API_KEY` | Personal Dolibarr API token. |
 | `LOG_LEVEL` | Optional logging verbosity (`INFO`, `DEBUG`, `WARNING`, …). |
+| `MCP_TRANSPORT` | Transport to use: `stdio` (default) or `http` for streamable HTTP. |
+| `MCP_HTTP_HOST` | Host/interface to bind when using HTTP transport (default `0.0.0.0`). |
+| `MCP_HTTP_PORT` | Port to bind when using HTTP transport (default `8080`). |
 
 Example `.env`:
 
@@ -127,8 +130,8 @@ same environment variables when launched from Linux or macOS hosts.
 
 ### Start the MCP server
 
-The server communicates over STDIO, so run it in the foreground from the virtual
-environment:
+The server communicates over STDIO by default, so run it in the foreground from
+the virtual environment:
 
 ```bash
 python -m dolibarr_mcp.dolibarr_mcp_server
@@ -136,6 +139,20 @@ python -m dolibarr_mcp.dolibarr_mcp_server
 
 Logs are written to stderr to avoid interfering with the MCP protocol. Keep the
 process running while Claude Desktop is active.
+
+### HTTP streaming mode (for Open WebUI or remote MCP clients)
+
+Enable the HTTP transport by setting `MCP_TRANSPORT=http` (and optionally
+`MCP_HTTP_HOST` / `MCP_HTTP_PORT`). This keeps the server running without STDIO
+and exposes the Streamable HTTP transport compatible with Open WebUI:
+
+```bash
+MCP_TRANSPORT=http MCP_HTTP_PORT=8080 python -m dolibarr_mcp.dolibarr_mcp_server
+```
+
+Then point Open WebUI’s MCP configuration at `http://<host>:8080/`. The MCP
+protocol headers (including `mcp-protocol-version`) are handled automatically by
+Open WebUI’s MCP client.
 
 ### Test the Dolibarr credentials
 
@@ -161,4 +178,3 @@ When the environment variables are already set, omit the overrides and run
 ## 📄 License
 
 Released under the [MIT License](LICENSE).
-

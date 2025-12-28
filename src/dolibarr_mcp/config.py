@@ -38,6 +38,21 @@ class Config(BaseSettings):
         default="INFO",
     )
 
+    mcp_transport: str = Field(
+        description="Transport for MCP server (stdio or http)",
+        default="stdio",
+    )
+
+    mcp_http_host: str = Field(
+        description="HTTP host/interface for MCP server",
+        default="0.0.0.0",
+    )
+
+    mcp_http_port: int = Field(
+        description="HTTP port for MCP server",
+        default=8080,
+    )
+
     @field_validator("dolibarr_url")
     @classmethod
     def validate_dolibarr_url(cls, v: str) -> str:
@@ -113,6 +128,36 @@ class Config(BaseSettings):
             print(f"⚠️ Invalid LOG_LEVEL '{v}', using INFO", file=sys.stderr)
             return "INFO"
         return v.upper()
+
+    @field_validator("mcp_transport")
+    @classmethod
+    def validate_transport(cls, v: str) -> str:
+        """Validate MCP transport selection."""
+        if not v:
+            v = os.getenv("MCP_TRANSPORT", "stdio")
+        normalized = v.lower()
+        if normalized not in {"stdio", "http"}:
+            print(f"⚠️ Invalid MCP_TRANSPORT '{v}', defaulting to stdio", file=sys.stderr)
+            return "stdio"
+        return normalized
+
+    @field_validator("mcp_http_host")
+    @classmethod
+    def validate_http_host(cls, v: str) -> str:
+        """Validate HTTP host."""
+        return v or os.getenv("MCP_HTTP_HOST", "0.0.0.0")
+
+    @field_validator("mcp_http_port")
+    @classmethod
+    def validate_http_port(cls, v: int) -> int:
+        """Validate HTTP port."""
+        try:
+            port = int(v)
+        except Exception as exc:
+            raise ValueError(f"Invalid MCP_HTTP_PORT '{v}': {exc}") from exc
+        if not 1 <= port <= 65535:
+            raise ValueError("MCP_HTTP_PORT must be between 1 and 65535")
+        return port
 
     @classmethod
     def from_env(cls) -> "Config":

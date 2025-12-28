@@ -3,7 +3,6 @@
 import asyncio
 import json
 import sys
-import os
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,11 +10,18 @@ from contextlib import asynccontextmanager
 from mcp.server.models import InitializationOptions
 from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Tool, TextContent
 
 # Import our Dolibarr components
 from .config import Config
 from .dolibarr_client import DolibarrClient, DolibarrAPIError
+
+# HTTP transport imports
+from starlette.applications import Starlette
+from starlette.responses import Response
+from starlette.routing import Route
+import uvicorn
 
 
 # Configure logging to stderr so it doesn't interfere with MCP protocol
@@ -1379,11 +1385,13 @@ async def handle_call_tool(name: str, arguments: dict):
 
 
 @asynccontextmanager
-async def test_api_connection():
+async def test_api_connection(config: Config | None = None):
     """Test API connection and yield client if successful."""
-    config = None
+    created_config = False
     try:
-        config = Config()
+        if config is None:
+            config = Config()
+            created_config = True
         
         # Check if environment variables are set
         if not config.dolibarr_url or config.dolibarr_url == "https://your-dolibarr-instance.com/api/index.php":
@@ -1413,17 +1421,77 @@ async def test_api_connection():
                 yield True  # Allow server to start anyway
     except Exception as e:
         print(f"⚠️  API test error: {e}", file=sys.stderr)
-        if config is None:
+        if config is None or created_config:
             print("💡 Check your .env file configuration", file=sys.stderr)
         print("⚠️  Server will start but API calls may fail", file=sys.stderr)
         yield True  # Allow server to start anyway
 
 
+async def _run_stdio_server(_config: Config) -> None:
+    """Run the MCP server over STDIO (default)."""
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name="dolibarr-mcp",
+                server_version="1.0.1",
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
+                ),
+            ),
+        )
+
+
+def _build_http_app(session_manager: StreamableHTTPSessionManager) -> Starlette:
+    """Create Starlette app that forwards to the StreamableHTTP session manager."""
+
+    async def options_handler(request):
+        """Lightweight CORS-friendly response for preflight requests."""
+        return Response(status_code=204)
+
+    async def lifespan(app):
+        async with session_manager.run():
+            yield
+
+    return Starlette(
+        routes=[
+            Route("/", session_manager.handle_request, methods=["GET", "POST", "DELETE"]),
+            Route("/{path:path}", session_manager.handle_request, methods=["GET", "POST", "DELETE"]),
+            Route("/", options_handler, methods=["OPTIONS"]),
+            Route("/{path:path}", options_handler, methods=["OPTIONS"]),
+        ],
+        lifespan=lifespan,
+    )
+
+
+async def _run_http_server(config: Config) -> None:
+    """Run the MCP server over HTTP (StreamableHTTP)."""
+    session_manager = StreamableHTTPSessionManager(server, json_response=False, stateless=False)
+    app = _build_http_app(session_manager)
+    print(
+        f"🌐 Starting MCP HTTP server on {config.mcp_http_host}:{config.mcp_http_port}",
+        file=sys.stderr,
+    )
+    uvicorn_config = uvicorn.Config(
+        app,
+        host=config.mcp_http_host,
+        port=config.mcp_http_port,
+        log_level=config.log_level.lower(),
+        loop="asyncio",
+        access_log=False,
+    )
+    uvicorn_server = uvicorn.Server(uvicorn_config)
+    await uvicorn_server.serve()
+
+
 async def main():
     """Run the Dolibarr MCP server."""
-    
+    config = Config()
+
     # Test API connection but don't fail if it's not working
-    async with test_api_connection() as api_ok:
+    async with test_api_connection(config) as api_ok:
         if not api_ok:
             print("⚠️  Starting server without valid API connection", file=sys.stderr)
             print("📝 Configure your .env file to enable API functionality", file=sys.stderr)
@@ -1434,21 +1502,12 @@ async def main():
     print("🚀 Starting Professional Dolibarr MCP server...", file=sys.stderr)
     print("✅ Server ready with comprehensive ERP management capabilities", file=sys.stderr)
     print("📝 Tools will attempt to connect when called", file=sys.stderr)
-    
+
     try:
-        async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="dolibarr-mcp",
-                    server_version="1.0.1",
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
+        if config.mcp_transport == "http":
+            await _run_http_server(config)
+        else:
+            await _run_stdio_server(config)
     except Exception as e:
         print(f"💥 Server error: {e}", file=sys.stderr)
         raise
