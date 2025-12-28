@@ -1,0 +1,2 @@
+[submodule "mcp_servers/dolibarr-mcp"]
+	url = https://github.com/edser-fr/dolibarr-mcp.git
