@@ -303,6 +303,7 @@ class DolibarrClient:
         if type_value is not None:
             payload.setdefault("client", 1 if type_value in (1, 3) else 0)
             payload.setdefault("fournisseur", 1 if type_value in (2, 3) else 0)
+            payload.setdefault("code_fournisseur", payload.get("code_fournisseur", "auto"))
         else:
             payload.setdefault("client", 1)
 
@@ -584,6 +585,63 @@ class DolibarrClient:
     async def delete_project(self, project_id: int) -> Dict[str, Any]:
         """Delete a project."""
         return await self.request("DELETE", f"projects/{project_id}")
+
+    # ============================================================================
+    # BANK ACCOUNT MANAGEMENT
+    # ============================================================================
+
+    async def get_bank_accounts(self) -> List[Dict[str, Any]]:
+        """Get list of bank accounts."""
+        result = await self.request("GET", "bankaccounts")
+        return result if isinstance(result, list) else []
+
+    async def get_bank_lines(self, account_id: int, params: Optional[Dict] = None) -> List[Dict[str, Any]]:
+        """Get bank lines for a specific account."""
+        result = await self.request("GET", f"bankaccounts/{account_id}/lines", params=params)
+        return result if isinstance(result, list) else []
+
+    async def get_chart_of_accounts(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get the Chart of Accounts."""
+        # Try generic accounting account endpoint. Check Dolibarr API explorer if this fails.
+        # Usually /compta/chartofaccounts or /accounting/accounts
+        # Based on common Dolibarr REST API structure for accounting:
+        params = {"limit": limit}
+        # Note: 'bankaccounts' is for bank accounts, accounting accounts are usually separate.
+        # Let's try to access chart of accounts via generic API if dedicated doesn't exist.
+        # However, for now we assume a standard endpoint or use raw query if possible.
+        # Attempting standard endpoint:
+        try:
+             result = await self.request("GET", "accounting/chartofaccounts", params=params)
+             if isinstance(result, list): return result
+        except:
+             pass
+             
+        # Fallback: try raw table fetch if possible or other endpoint
+        # Often it is simpler to list accounts via bank or compta modules. 
+        # But 'accounting/accounts' is the modern one.
+        return []
+
+    async def create_bank_transaction_line(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a standalone bank transaction line."""
+        account_id = data.pop("bank_account_id")
+        import sys
+        print(f"DEBUG: Creating bank line for account {account_id} with data: {data}", file=sys.stderr)
+        result = await self.request("POST", f"bankaccounts/{account_id}/lines", data=data)
+        return self._extract_identifier(result)
+
+    async def create_payment(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a payment for supplier invoices."""
+        result = await self.request("POST", "supplierinvoices/payments", data=data)
+        return self._extract_identifier(result)
+
+    async def create_supplier_invoice(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a supplier invoice."""
+        result = await self.request("POST", "supplierinvoices", data=data)
+        return self._extract_identifier(result)
+
+    async def validate_supplier_invoice(self, invoice_id: int) -> Dict[str, Any]:
+        """Validate a supplier invoice."""
+        return await self.request("POST", f"supplierinvoices/{invoice_id}/validate")
 
     # ============================================================================
     # RAW API CALL

@@ -314,6 +314,9 @@ async def handle_list_tools():
                         "description": "Status (1=Active, 0=Inactive)",
                         "default": 1,
                     },
+                    "idprof1": {"type": "string", "description": "SIREN number (Must be mapped here, do not use 'siren' key)"},
+                    "idprof2": {"type": "string", "description": "SIRET number (Must be mapped here, do not use 'siret' key)"},
+                    "tva_intra": {"type": "string", "description": "Numéro de TVA"},
                 },
                 "required": ["name"],
                 "additionalProperties": False,
@@ -339,6 +342,9 @@ async def handle_list_tools():
                         "type": "integer",
                         "description": "Status (1=Active, 0=Inactive)",
                     },
+                    "idprof1": {"type": "string", "description": "SIREN number (Must be mapped here, do not use 'siren' key)"},
+                    "idprof2": {"type": "string", "description": "SIRET number (Must be mapped here, do not use 'siret' key)"},
+                    "tva_intra": {"type": "string", "description": "Numéro de TVA"},
                 },
                 "required": ["customer_id"],
                 "additionalProperties": False,
@@ -401,19 +407,69 @@ async def handle_list_tools():
         ),
         Tool(
             name="create_product",
-            description="Create a new product",
+            description="Create a new product or service in Dolibarr with full definition options.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "label": {"type": "string", "description": "Product name/label"},
-                    "price": {"type": "number", "description": "Product price"},
-                    "description": {"type": "string", "description": "Product description"},
-                    "stock": {
-                        "type": "integer",
-                        "description": "Initial stock quantity",
+                    # --- Paramètres Obligatoires (API) ---
+                    "ref": {
+                        "type": "string", 
+                        "description": "Unique reference for the product (e.g., 'PROD-001'). Mandatory."
                     },
+                    "label": {
+                        "type": "string", 
+                        "description": "Label or name of the product."
+                    },
+
+                    # --- Paramètres Commerciaux & Typage ---
+                    "type": {
+                        "type": "string",
+                        "description": "Product type: '0' for Product (manages stock), '1' for Service (no stock).",
+                        "enum": ["0", "1"]
+                    },
+                    "price": {
+                        "type": "number", 
+                        "description": "Net selling price (HT/Excl. Tax)."
+                    },
+                    "tva_tx": {
+                        "type": "number", 
+                        "description": "VAT rate as a percentage (e.g., 20.0)."
+                    },
+                    "status": {
+                        "type": "string", 
+                        "description": "Selling status: '1' = On sell, '0' = Not for sell.",
+                        "enum": ["0", "1"]
+                    },
+                    "status_buy": {
+                        "type": "string", 
+                        "description": "Purchase status: '1' = To buy (needs supplier), '0' = Not to buy.",
+                        "enum": ["0", "1"]
+                    },
+
+                    # --- Détails & Logistique ---
+                    "description": {
+                        "type": "string", 
+                        "description": "Long HTML or text description."
+                    },
+                    "barcode": {
+                        "type": "string", 
+                        "description": "Barcode value (EAN13, etc.)."
+                    },
+                    "seuil_stock_alerte": {
+                        "type": "integer",
+                        "description": "Stock alert limit (low stock threshold)."
+                    },
+                    "weight": {
+                        "type": "number",
+                        "description": "Weight of the product."
+                    },
+                    "weight_units": {
+                        "type": "integer",
+                        "description": "Unit for weight as power of 10 (0=kg, -3=g, etc.)."
+                    }
                 },
-                "required": ["label", "price"],
+                # 'ref' et 'label' sont les seuls strictement requis par Dolibarr
+                "required": ["ref", "label"], 
                 "additionalProperties": False,
             },
         ),
@@ -987,6 +1043,122 @@ async def handle_list_tools():
             },
         ),
         Tool(
+            name="get_bank_accounts",
+            description="Get list of bank accounts from Dolibarr",
+            inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        Tool(
+            name="get_chart_of_accounts",
+            description="Get the Chart of Accounts (Plan Comptable) from Dolibarr. Use this to find accounting codes (compte comptable) for transactions.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Limit results", "default": 100},
+                },
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="get_bank_lines",
+            description="Get bank lines for a specific account",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "integer", "description": "Bank account ID"},
+                    "limit": {"type": "integer", "description": "Limit", "default": 20},
+                    "sqlfilters": {"type": "string", "description": "SQL filters"},
+                },
+                "required": ["account_id"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="create_supplier_invoice",
+            description="Create a new supplier invoice",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "socid": {"type": "integer", "description": "Supplier ID"},
+                    "date": {"type": "string", "description": "Invoice date (YYYY-MM-DD)"},
+                    "lines": {"type": "array", "items": {"type": "object"}},
+                },
+                "required": ["socid", "date", "lines"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="create_bank_transaction_line",
+            description="Create a standalone bank transaction line (miscellaneous payment) in Dolibarr, not linked to a specific invoice (e.g., bank fees, manual adjustments, direct expenses).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "bank_account_id": {
+                        "type": "integer",
+                        "description": "ID of the bank account to credit/debit (Required). corresponds to 'Compte bancaire' in UI."
+                    },
+                    "date": {
+                        "type": "integer",
+                        "description": "Transaction date (Unix timestamp). Corresponds to 'Date paiement'."
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Payment mode code. Common codes: 'VIR' (Transfer), 'CB' (Card), 'CHQ' (Check), 'ESP' (Cash), 'PRL' (Direct Debit). Corresponds to 'Mode de règlement'.",
+                        "enum": ["VIR", "CB", "CHQ", "ESP", "PRL", "LCR"]
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Description/Label of the transaction. Corresponds to 'Libellé'."
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "The amount. IMPORTANT: Use a NEGATIVE number for 'Debit' (expense) and a POSITIVE number for 'Credit' (revenue). Corresponds to 'Montant' + 'Sens'."
+                    },
+                    "cheque_number": {
+                        "type": "string",
+                        "description": "Reference number (Check number or Transfer ref). Corresponds to 'Numéro'."
+                    },
+                    "code_acc": {
+                        "type": "string",
+                        "description": "General accounting account code (e.g., '606000'). Corresponds to 'Compte comptable'."
+                    },
+                    "num_releve": {
+                        "type": "string",
+                        "description": "Identifiant du relevé bancaire ayant permis le rapprochement bancaire."
+                    },
+                },
+                "required": ["bank_account_id", "date", "type", "label", "amount", "cheque_number", "code_acc"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="validate_supplier_invoice",
+            description="Validate a supplier invoice",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "invoice_id": {"type": "integer", "description": "Invoice ID"},
+                },
+                "required": ["invoice_id"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="create_supplier_payment",
+            description="Create a payment for supplier invoices",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string", "description": "Payment date"},
+                    "paymentid": {"type": "integer", "description": "Payment type ID"},
+                    "amount": {"type": "number", "description": "Total amount"},
+                    "bankaccount": {"type": "integer", "description": "Bank account ID"},
+                    "lines": {"type": "array", "items": {"type": "object"}},
+                },
+                "required": ["date", "paymentid", "amount", "bankaccount", "lines"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
             name="get_project_by_id",
             description=(
                 "Get the details of exactly one project by numeric ID. "
@@ -1366,6 +1538,33 @@ async def handle_call_tool(name: str, arguments: dict):
                 result = await client.delete_project(arguments["project_id"])
 
             # Raw API Access
+            elif name == "get_bank_accounts":
+                result = await client.get_bank_accounts()
+
+            elif name == "get_chart_of_accounts":
+                # Fetch chart of accounts using a raw SQL-like filter or just getting all accounts
+                # Dolibarr API for accounting accounts is usually /accounting/accounts
+                # We will map this to the client method
+                limit = arguments.get("limit", 100)
+                result = await client.get_chart_of_accounts(limit=limit)
+
+            elif name == "get_bank_lines":
+                account_id = arguments.pop("account_id")
+                result = await client.get_bank_lines(account_id, params=arguments)
+
+            elif name == "create_bank_transaction_line":
+                result = await client.create_bank_transaction_line(arguments)
+
+            elif name == "create_supplier_invoice":
+                result = await client.create_supplier_invoice(arguments)
+
+            elif name == "validate_supplier_invoice":
+                invoice_id = arguments.pop("invoice_id")
+                result = await client.validate_supplier_invoice(invoice_id)
+
+            elif name == "create_supplier_payment":
+                result = await client.create_payment(arguments)
+
             elif name == "dolibarr_raw_api":
                 result = await client.dolibarr_raw_api(**arguments)
             
