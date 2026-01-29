@@ -20,7 +20,7 @@ from .dolibarr_client import DolibarrClient, DolibarrAPIError
 # HTTP transport imports
 from starlette.applications import Starlette
 from starlette.responses import Response
-from starlette.routing import Route
+from starlette.routing import Mount, Route
 import uvicorn
 
 
@@ -1457,10 +1457,9 @@ def _build_http_app(session_manager: StreamableHTTPSessionManager) -> Starlette:
 
     return Starlette(
         routes=[
-            Route("/", session_manager.handle_request, methods=["GET", "POST", "DELETE"]),
-            Route("/{path:path}", session_manager.handle_request, methods=["GET", "POST", "DELETE"]),
             Route("/", options_handler, methods=["OPTIONS"]),
             Route("/{path:path}", options_handler, methods=["OPTIONS"]),
+            Mount("/", app=session_manager.handle_request),
         ],
         lifespan=lifespan,
     )
